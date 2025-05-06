@@ -98,12 +98,14 @@ static size_t xFreeBytesRemaining = configADJUSTED_HEAP_SIZE;
  * of the list.
  */
 
+// Inserts a memory block into the free list, optionally merging with adjacent free blocks
 void prvInsertBlockIntoFreeList(BlockLink_t *pxBlockToInsert)
 {
     BlockLink_t *pxIterator;
     BlockLink_t *pxBlockPtr = pxBlockToInsert;
     size_t xBlockSize = pxBlockPtr->xBlockSize;
 
+    // If memory merging is enabled, attempt to coalesce adjacent free blocks
     if (if_merge_mem == 1) {
         size_t xStartAddress = (size_t) pxBlockPtr;
         size_t xEndAddress = xStartAddress + xBlockSize;
@@ -111,39 +113,47 @@ void prvInsertBlockIntoFreeList(BlockLink_t *pxBlockToInsert)
         BlockLink_t *pxPrevBlock = &xStart;
         BlockLink_t *pxCurBlock = xStart.pxNextFreeBlock;
 
+        // Traverse the free list to find adjacent blocks to merge with
         while ((void *) pxCurBlock != (void *) &xEnd) {
             size_t xCurBlockStartAddr = (size_t) pxCurBlock;
             size_t xCurBlockEndAddr = xCurBlockStartAddr + pxCurBlock->xBlockSize;
             size_t xCurBlockSize = pxCurBlock->xBlockSize;
 
+            // If the current block is not adjacent, continue to the next
             if (xStartAddress != xCurBlockEndAddr && xEndAddress != xCurBlockStartAddr) {
                 pxPrevBlock = pxCurBlock;
                 pxCurBlock = pxCurBlock->pxNextFreeBlock;
                 continue;
             }
 
+            // Merge if the block to insert is immediately after the current block
             if (xStartAddress == xCurBlockEndAddr) {
-                pxBlockPtr = pxCurBlock;
+                pxBlockPtr = pxCurBlock; // Update pointer to merged block
                 pxBlockPtr->xBlockSize += xBlockSize;
-            } else if (xEndAddress == xCurBlockStartAddr) {
+            }
+            // Merge if the block to insert is immediately before the current block
+            else if (xEndAddress == xCurBlockStartAddr) {
                 pxBlockPtr->xBlockSize += xCurBlockSize;
             }
 
+            // Remove the merged block from the free list
             pxPrevBlock->pxNextFreeBlock = pxCurBlock->pxNextFreeBlock;
             pxCurBlock = pxCurBlock->pxNextFreeBlock;
         }
 
+        // Update the block size to reflect any merging
         xBlockSize = pxBlockPtr->xBlockSize;
     }
 
-    // Insert block (merged or not) into the list in size order
+    // Insert the block into the free list in sorted order by size
     for (pxIterator = &xStart;
          pxIterator->pxNextFreeBlock->xBlockSize < xBlockSize;
          pxIterator = pxIterator->pxNextFreeBlock)
     {
-        // iterate to correct position
+        // Traverse to find the correct position
     }
 
+    // Link the block into the list
     pxBlockPtr->pxNextFreeBlock = pxIterator->pxNextFreeBlock;
     pxIterator->pxNextFreeBlock = pxBlockPtr;
 }
